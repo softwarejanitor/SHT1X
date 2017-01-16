@@ -1,5 +1,4 @@
-/**
- * SHT1x Library
+HT1x Library
  *
  * Copyright 2009 Jonathan Oxer <jon@oxer.com.au> / <www.practicalarduino.com>
  * Based on previous work by:
@@ -26,8 +25,10 @@ class SHT1x
 
     constructor (dataPin, clockPin)
     {
-        _dataPin = dataPin;
-        _clockPin = clockPin;
+        _dataPin = GPIO(dataPin);
+        _clockPin = GPIO(clockPin);
+        _dataPin.input();
+        _clockPin.output();
     }
 }
 
@@ -62,8 +63,8 @@ function SHT1x::readTemperatureF()
     local _temperature;  // Temperature derived from raw value
 
     // Conversion coefficients from SHT15 datasheet
-    const float D1 = -40.0;  // for 14 Bit @ 5V
-    const float D2 = 0.018;  // for 14 Bit DEGF
+    local D1 = -40.0;  // for 14 Bit @ 5V
+    local D2 = 0.018;  // for 14 Bit DEGF
 
     // Fetch raw value
     _val = readTemperatureRaw();
@@ -85,17 +86,17 @@ function SHT1x::readHumidity()
     local _temperature;        // Raw temperature value
   
     // Conversion coefficients from SHT15 datasheet
-    //const float C1 = -4.0;        // for V3 sensors
-    //const float C2 = 0.0405;      // for V3 sensors, 12-bit precision
-    //const float C3 = -0.0000028;  // for V3 sensors, 12-bit precision
-    const float C1 = -2.0468;     // for V4 sensors
-    const float C2 = 0.0367;      // for V4 sensors, 12-bit precision
-    const float C3 = -1.5955E-6;  // for V4 sensors, 12-bit precision
-    const float T1 = 0.01;        // for 14 Bit @ 5V
-    const float T2 = 0.00008;     // for 14 Bit @ 5V
+    //local C1 = -4.0;        // for V3 sensors
+    //local C2 = 0.0405;      // for V3 sensors, 12-bit precision
+    //local C3 = -0.0000028;  // for V3 sensors, 12-bit precision
+    local C1 = -2.0468;     // for V4 sensors
+    local C2 = 0.0367;      // for V4 sensors, 12-bit precision
+    local C3 = -1.5955E-6;  // for V4 sensors, 12-bit precision
+    local T1 = 0.01;        // for 14 Bit @ 5V
+    local T2 = 0.00008;     // for 14 Bit @ 5V
 
     // Command to send to the SHT1x to request humidity
-    local _gHumidCmd = 0b00000101;
+    local _gHumidCmd = 0x05;  // 0b00000101
 
     // Fetch the value from the sensor
     sendCommandSHT(_gHumidCmd);
@@ -122,7 +123,7 @@ function SHT1x::readTemperatureRaw()
     local _val;
 
     // Command to send to the SHT1x to request Temperature
-    local _gTempCmd = 0b00000011;
+    local _gTempCmd = 0x03;  // 0b00000011
 
     sendCommandSHT(_gTempCmd);
     waitForResultSHT();
@@ -137,13 +138,17 @@ function SHT1x::readTemperatureRaw()
 // commands for reading/sending data to a SHTx sensor 
 function SHT1x::shiftIn(_numBits)
 {
-    local  ret = 0;
-    local  i;
+    local ret = 0;
+    local i;
+    local dp;
 
+    _dataPin.input();
+    
     for (i = 0; i < _numBits; ++i) {
         _clockPin.high();
         delay(10);  // I don't know why I need this, but without it I don't get my 8 lsb of temp
-        ret = ret*2 + _dataPin.ishigh();
+        dp =_dataPin.ishigh() ? 1 : 0;
+        ret = (ret * 2) + dp;
         _clockPin.low();
     }
 
@@ -157,12 +162,15 @@ function shiftOut(bitOrder, val)
     local i;
     local vb;
 
+    _dataPin.output();
+
     for (i = 0; i < 8; i++)  {
         if (bitOrder == LSBFIRST) {
             vb = !!(val & (1 << i));
         } else {
             vb = !!(val & (1 << (7 - i)));
         }
+        
         if (vb) {
             _dataPin.high();
         } else {
@@ -199,7 +207,7 @@ function SHT1x::sendCommandSHT(_command)
     _dataPin.input();
     ack = _dataPin.ishigh();
     //if (ack != LOW) {
-    //    //print("Ack Error 0\n");
+    //   //print("Ack Error 0\n");
     //}
     _clockPin.low();
     ack = _dataPin.ishigh();
@@ -254,7 +262,7 @@ function SHT1x::getData16SHT()
   
     // get the LSB (less significant bits) 
     _dataPin.input(); 
-    val |= shiftIn(8); 
+    val = val | shiftIn(8); 
   
     return val; 
 }
@@ -271,3 +279,4 @@ function SHT1x::skipCrcSHT()
     _clockPin.high();
     _clockPin.low();
 }
+
